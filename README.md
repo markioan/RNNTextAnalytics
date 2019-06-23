@@ -1,4 +1,4 @@
-# Assignment 3
+# Assignment 4
 
 ## Participants
  - Karakolis Evangelos (P3351803)
@@ -7,7 +7,7 @@
  - Roumeliotis Anargyros (P3351817)
 
 ## Description
-This project aims to create an MLP model that classifies the best stackoverflow's posts into the relevant programming languages. For the purpose of this project, we used an already formatted and structured dataset of *posts* and *tags* generated from Google's BigQuery.
+This project aims to create an RNN- LSTM model that classifies the best stackoverflow's posts into the relevant programming languages. For the purpose of this project, we used an already formatted and structured dataset of *posts* and *tags* generated from Google's BigQuery.
 
 The project has been split into three sections(notebooks).
     
@@ -15,9 +15,9 @@ The project has been split into three sections(notebooks).
    
    2. The *second* one transforms the *post* data into **Centroids of word Embeddings** with and without Standardization. 
    
-   3. The *third* finds the **best** tuned model parameter combination of the above 4 models and trains a MLP neural model with it.
+   3. The *third* finds the **best** tuned model parameter combination of the above 4 models and trains a RNN neural model with it.
    
-   Each section contains a partition where it evaluates and visualizes the prediction performance of the best configured MLP model using the relevant metrics as *f1*, *accuracy*,  and visualizations as *Confusion Matrix* , *Classification Report*
+   Each section contains a partition where it evaluates and visualizes the prediction performance of the best configured RNN model using the relevant metrics as *f1*, *accuracy*,  and visualizations as *Confusion Matrix* , *Classification Report*
 
 ## Project Structure
 
@@ -29,9 +29,9 @@ The project is structured with the below formation:
     
        - *preprocessing.py* module, which contains all the functions that are used from the notebooks for the required data formation and processing.
        
-       - *models.py* module, which contains the code for the MLPs models generation. The implementation is relevant to the *Talos* documentation in order to complete a successful parameter tuning for each model.
+       - *models.py* module, which contains the code for the RNNs models generation. The implementation is relevant to the *Talos* documentation in order to complete a successful parameter tuning for each model.
        
-       - *metrics.py* module, which contains the code for the MLP models compilation metrics as *f1* , *accuracy*. etc
+       - *metrics.py* module, which contains the code for the RNNs models compilation metrics as *f1* , *accuracy*. etc
        
        - *visualization.py* module, which contains reusable code for the models performance visualization.
        
