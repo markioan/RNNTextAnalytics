@@ -53,6 +53,9 @@ def plot_history_metrics(history_obj, accuracy_metric='categorical_accuracy'):
 
     plot_accuracy(history_obj, accuracy_metric)
 
+    plot_loss(history_obj)
+
+
 #------- Prediction's Visualizations -----------
 
 # This utility function is from the sklearn docs: http://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html
@@ -86,7 +89,7 @@ def plot_confusion_matrix(y_true, y_pred, classes,
     plt.xlabel('Predicted label', fontsize=25)
 
 
-def create_clf_report(y_true, y_pred, classes):
+def create_clf_report(y_true, y_pred, y_true_idx, y_pred_idx):
     """
     This function calculates several metrics about a classifier and creates a mini report.
     :param y_true: iterable. An iterable of string or ints.
@@ -96,7 +99,7 @@ def create_clf_report(y_true, y_pred, classes):
     """
 
     print("-" * 80, end='\n')
-    print("Accuracy Score: {0:.2f}%".format(accuracy_score(y_true, y_pred) * 100))
+    print("Accuracy Score: {0:.2f}%".format(accuracy_score(y_true_idx, y_pred_idx) * 100))
     print("-" * 80)
 
     print("-" * 80, end='\n')

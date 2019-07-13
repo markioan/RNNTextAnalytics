@@ -8,6 +8,9 @@ DATA_DIR = join(ROOT_DIR, 'data')
 TALOS_DIR = join(DATA_DIR, 'talos_logs')
 MODELS_DIR = join(ROOT_DIR, 'models')
 
+MAX_WORDS =20000
+MAX_SEQUENCE_LENGTH = 600
+
 # if the folders don't exist, create them.
 if not exists(DATA_DIR):
     makedirs(DATA_DIR)

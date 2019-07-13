@@ -5,24 +5,27 @@ import numpy as np
 import nltk
 import pickle
 
-import string
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer, StandardScaler
-from gensim.models.wrappers import FastText
+from keras.preprocessing.text import Tokenizer
+from keras.preprocessing.sequence import pad_sequences
 
 from definitions import DATA_DIR
+
+from definitions import MAX_WORDS, MAX_SEQUENCE_LENGTH
 
 import logging
 
 logger = logging.getLogger(__name__)
 
 DATASET_FILENAME = 'stack-overflow-data.csv'
-DATASET_PICKLE_FILENAME_TF = 'stack-overflow-pickle-tf'
-DATASET_PICKLE_FILENAME_FTC = 'stack-overflow-pickle-ftc'
-EMBEDDINGS_FILENAME = 'cc.en.300.bin'
+DATASET_PICKLE_FILENAME = 'stack-overflow-pickle'
+EMBEDDINGS_FILENAME = 'cc.en.300.vec'
+EMBEDDINGS_VOC = 'fasttext_voc'
+EMBEDDINGS_VEC = 'fasttext.npy'
 MINIMIZED_EMBEDDINGS_FILENAME = 'minimized_embeddings'
 
 # Data Processing methods
@@ -46,7 +49,7 @@ def text_centroid(text, model):
     return np.asarray(text_vec) / counter
 
 
-def preprocess_full_dataset(df, input_ins='as_tf_idf'):
+def preprocess_full_dataset(df):
     """
     The data preprocessing of the full dataset. The only extra preprocessing that is implemented
     to the dataset in case of the *tf_idf* model is the *stemming* of each word
@@ -74,13 +77,6 @@ def preprocess_full_dataset(df, input_ins='as_tf_idf'):
     # remove punctuation characters
     punc_reqex = '[!,.:;-](?= |$)'
     df['post'] = df['post'].apply(lambda text: re.sub(punc_reqex, r'', text))
-
-    # Extra preprocesing for the TF - IDF
-    if input_ins == 'as_tf_idf':
-        # Apply Stemmer
-        stemmer = PorterStemmer()
-        lambda_exrp = lambda text: ' '.join([stemmer.stem(word.strip()) for word in text.split()])
-        df['post'] = df['post'].apply(lambda_exrp)
 
     return df
 
@@ -114,7 +110,7 @@ def minimize_embeddings(input_data, emb_model, text_field, save=True):
     return minimized
 
 
-def load_embeddings(input_data, text_field, minimized=False):
+def load_embeddings(load_from_pickle=True):
     """
     Reads and Loads the embeddings. If partial is enabled then it returns only the embedding for
     the words that is only used into the given <input_data>.
@@ -127,27 +123,54 @@ def load_embeddings(input_data, text_field, minimized=False):
 
     """
 
-    def load_embeddings():
-        embeddings_path = os.path.join(DATA_DIR, EMBEDDINGS_FILENAME)
-        return FastText.load_fasttext_format(embeddings_path)
+    def open_embeddings_vocabulary():
+        idx = 0
+        vocab = {}
+        vocab_path = os.path.join(DATA_DIR, EMBEDDINGS_FILENAME)
+        with open(vocab_path, 'r', encoding="utf-8", newline='\n', errors='ignore') as f:
+            for l in f:
+                line = l.rstrip().split(' ')
+                if idx == 0:
+                    vocab_size = int(line[0]) + 2
+                    dim = int(line[1])
+                    vecs = np.zeros(vocab_size * dim).reshape(vocab_size, dim)
+                    vocab["__PADDING__"] = 0
+                    vocab["__UNK__"] = 1
+                    idx = 2
+                else:
+                    vocab[line[0]] = idx
+                    emb = np.array(line[1:]).astype(np.float)
+                    if (emb.shape[0] == dim):
+                        vecs[idx, :] = emb
+                        idx += 1
+                    else:
+                        continue
+        return vocab, vecs
 
-    if minimized:
+    embeddings_voc_path = os.path.join(DATA_DIR, EMBEDDINGS_VOC)
+    embeddings_vec_path = os.path.join(DATA_DIR, EMBEDDINGS_VEC)
+
+    if load_from_pickle:
         try:
-            minimized_path = os.path.join(DATA_DIR, MINIMIZED_EMBEDDINGS_FILENAME)
-            with open(minimized_path, 'rb') as minimized_pickle:
-                embeddings = pickle.load(minimized_pickle)
+            with open(embeddings_voc_path, 'rb') as embeddings_voc_pickle:
+                embeddings_voc = pickle.load(embeddings_voc_pickle)
+
+            with open(embeddings_vec_path, "rb") as embeddings_vec_np:
+                embeddings_vec = np.load(embeddings_vec_np)
 
         except Exception as e:
             logger.exception(e)
-            embeddings = minimize_embeddings(input_data, load_embeddings(), text_field)
+            embeddings_voc, embeddings_vec  = open_embeddings_vocabulary()
+            pickle.dump(embeddings_voc, open(embeddings_voc_path, 'wb'))
+            np.save(embeddings_vec_path, embeddings_vec)
 
     else:
-        embeddings = load_embeddings()
+        embeddings_voc, embeddings_vec  = open_embeddings_vocabulary()
 
-    return embeddings
+    return embeddings_voc, embeddings_vec
 
 
-def load_dataset(tags_categories='__all__', load_from_pickle=True, input_ins='as_tf_idf'):
+def load_dataset(tags_categories='__all__', load_from_pickle=True):
     """
     Loads and returns the Dataset as a DataFrame. The returned Dataframe will be proccesed.
 
@@ -156,8 +179,6 @@ def load_dataset(tags_categories='__all__', load_from_pickle=True, input_ins='as
                     will filter the dataset against.
     :load_from_pickle (bool): If True then tries to load from pickle file, Otherwise it
                               loads the initial dataset.
-    :input_ins (str): If 'as_tf_idf' is given then it generates tf-idf vectors per text row
-                      If 'as_centroids' is given then it generates centroids per text row
     :return: A DataFrame filled with the whole or a subset of the dataset loaded.
 
     """
@@ -165,16 +186,13 @@ def load_dataset(tags_categories='__all__', load_from_pickle=True, input_ins='as
     def load_dataset_and_preprocess():
         dataset_path = os.path.join(DATA_DIR, DATASET_FILENAME)
         dataset_df = pd.read_csv(dataset_path)
-        return preprocess_full_dataset(dataset_df, input_ins)
+        return preprocess_full_dataset(dataset_df)
 
     assert tags_categories == '__all__' or isinstance(tags_categories, list)  or isinstance(tags_categories, tuple), \
         ("Argument <tags_categories> should be a type of 'list' or 'tuple' or a string with explicit value '__all__'."
          "Instead it got the value {}".format(tags_categories))
 
-    if input_ins == 'as_tf_idf':
-        pickle_path = os.path.join(DATA_DIR, DATASET_PICKLE_FILENAME_TF)
-    else:
-        pickle_path = os.path.join(DATA_DIR, DATASET_PICKLE_FILENAME_FTC)
+    pickle_path = os.path.join(DATA_DIR, DATASET_PICKLE_FILENAME)
 
     if load_from_pickle:
         try:
@@ -190,8 +208,7 @@ def load_dataset(tags_categories='__all__', load_from_pickle=True, input_ins='as
     return dataset_df if tags_categories == '__all__' else dataset_df.loc[dataset_df['tags'].isin(tags_categories)]
 
 
-
-def preprocess_data(input_data, label_field, text_field, input_ins='as_tf_idf', embeddings=None, **kwargs):
+def preprocess_data(input_data, label_field, text_field, **kwargs):
     """
     Generates the train-test data for the model based on the given arguments.
 
@@ -202,12 +219,6 @@ def preprocess_data(input_data, label_field, text_field, input_ins='as_tf_idf', 
 
         'text_field' (str): The key name of the column that the test is contained,
 
-        'embeddings' (dict or Word2Vec): It is required when precessing as 'as_centroids'.
-                                         Represents either a key:value pair of word: word2vec vectors representation,
-                                         or the whole Word2Vec instance model
-
-        'input_ins' (str): If 'as_tf_idf' is given then it generates tf-idf vectors per text row
-                     If 'as_centroids' is given then it generates centroids per text row
     It returns a dictionary with the below structure:
         {
             'x_train' (numpy.array),
@@ -222,7 +233,6 @@ def preprocess_data(input_data, label_field, text_field, input_ins='as_tf_idf', 
 
     cv_split_full = kwargs.get('cv_split_full', 0.3)
     cv_split_dev = kwargs.get('cv_split_dev', 0.2)
-    standardize = kwargs.get('standardize', False)
 
 
     full_train, test = train_test_split(input_data,
@@ -234,31 +244,15 @@ def preprocess_data(input_data, label_field, text_field, input_ins='as_tf_idf', 
                                         random_state=1596,
                                         stratify=full_train[label_field])
 
-    if input_ins == 'as_tf_idf':
-        vectorizer = TfidfVectorizer(ngram_range=(1, 2),
-                                     max_features=5000,
-                                     sublinear_tf=True).fit(train[text_field])
-        x_train = vectorizer.transform(train[text_field]).toarray()
-        x_train_dev = vectorizer.transform(train_dev[text_field]).toarray()
-        x_test = vectorizer.transform(test[text_field]).toarray()
 
-    else:
-        x_train = np.array(list(map(lambda text: text_centroid(text, embeddings), train[text_field])))
-        x_train = np.stack(x_train, axis=0)
-
-        x_train_dev = np.array(list(map(lambda text: text_centroid(text, embeddings), train_dev[text_field])))
-        x_train_dev = np.stack(x_train_dev, axis=0)
-
-        x_test = np.array(list(map(lambda text: text_centroid(text, embeddings), test[text_field])))
-        x_test = np.stack(x_test, axis=0)
-
-    # Extra preprocessing in transformed data
-    if standardize:
-        scaler = StandardScaler().fit(x_train)
-        x_train = scaler.transform(x_train)
-        x_train_dev = scaler.transform(x_train_dev)
-        x_test = scaler.transform(x_test)
-
+    tokenizer = Tokenizer(num_words=MAX_WORDS, oov_token='__UNK__')
+    tokenizer.fit_on_texts(train[text_field])
+    train_seqs = tokenizer.texts_to_sequences(train[text_field])
+    dev_seqs = tokenizer.texts_to_sequences(train_dev[text_field])
+    test_seqs = tokenizer.texts_to_sequences(test[text_field])
+    x_train = pad_sequences(train_seqs, maxlen=MAX_SEQUENCE_LENGTH, padding='post')
+    x_train_dev = pad_sequences(dev_seqs, maxlen=MAX_SEQUENCE_LENGTH, padding='post')
+    x_test = pad_sequences(test_seqs, maxlen=MAX_SEQUENCE_LENGTH, padding='post')
 
     mlb = MultiLabelBinarizer()
 
@@ -274,9 +268,25 @@ def preprocess_data(input_data, label_field, text_field, input_ins='as_tf_idf', 
         'x_test': x_test,
         'y_train': y_train,
         'y_train_dev': y_train_dev,
-        'y_test': y_test
+        'y_test': y_test,
+        'words_index': tokenizer.word_index
     }
 
+
+def generate_embeddings_matrix(embeddings_voc, embeddings_vec,  words_index):
+    embeddings_dim = embeddings_vec.shape[1]
+    # Extra values of '__UNK__' and '__PADDING__'
+    embedding_matrix = np.zeros((MAX_WORDS + 2, embeddings_dim))
+    for word, i in words_index.items():
+        if i > MAX_WORDS:
+            continue
+        try:
+            embedding_vector = embeddings_vec[embeddings_voc[word], :]
+            embedding_matrix[i] = embedding_vector
+        except:
+            pass
+
+    return  embedding_matrix
 
 if __name__ == "__main__":
     data = load_dataset()
