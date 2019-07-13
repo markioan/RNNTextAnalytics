@@ -1,0 +1,8 @@
+round_epochs,val_loss,val_precision,val_recall,val_f1,val_accuracy,val_categorical_accuracy,loss,precision,recall,f1,accuracy,categorical_accuracy,embedding_dim,gru_size,dense,embeddings_matrix,visualize_process,with_early_stoping,early_stopping,early_stopping_config__monitor,early_stopping_config__min_delta,early_stopping_config__patience,early_stopping_config__mode,model_type,embeddings_dropout,var_dropout,mlp_dropout,mlp_activation,rnn_activation,optimizer,batch_size,epochs
+5,0.16536155930587224,0.9612044997442336,0.9409523810659136,0.9509236235845656,0.9676190452348619,0.9542857142857143,0.15811300261186906,0.9583094714936756,0.9368707482993197,0.947325769541215,0.9653514867250611,0.9477551020408164,300,200,300,[[ 0.      0.      0.     ...  0.      0.      0.    ]
+ [ 0.      0.      0.     ...  0.      0.      0.    ]
+ [ 0.0363 -0.0601 -0.079  ...  0.0515  0.0123 -0.0028]
+ ...
+ [ 0.      0.      0.     ...  0.      0.      0.    ]
+ [ 0.1047  0.0371 -0.0528 ...  0.1238  0.0719 -0.0474]
+ [ 0.      0.      0.     ...  0.      0.      0.    ]],True,True,True,val_f1,0,5,max,keras_BiGRU_model,0.2,0.6,0.2,softmax,sigmoid,Adam,64,5

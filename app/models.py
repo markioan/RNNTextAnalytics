@@ -1,68 +1,48 @@
 from collections import Iterable
 
 import pandas as pd
-from keras.callbacks import ModelCheckpoint, EarlyStopping
-from keras.layers import Dense, Dropout
-from keras.models import Sequential
+from keras import Model
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras.layers import Bidirectional, Dense, Dropout, Input
+from keras.layers.embeddings import Embedding
+from keras.layers.recurrent import GRU, LSTM
 from keras_tqdm import TQDMNotebookCallback
 from talos import Reporting
-from talos.model import early_stopper
 
-from app.metrics import f1
+from app.layers import DeepAttention
+from app.metrics import *
+from definitions import MAX_SEQUENCE_LENGTH, MAX_WORDS
 
 
-def load_model(x_train, y_train, x_train_dev, y_train_dev, kwargs):
+def load_biGRU_model(x_train, y_train, x_train_dev, y_train_dev, params):
     """
     The callback method that will be used from the Talos API in order to
-    generate a configurable Keras  MLP model.
+    generate a configurable Keras RNN Model with Bidirection GRUs.
     :return (tuple): A tuple with the history object of the model train and the ,
                      generated Keras model itself.
     """
-
-    def generate_hidden_layers(model_nn, n_labels, **kwargs):
-        """
-        In order to create hidden layer for the constructed model, the kwargs
-        parameters must contain the keys:
-        1) 'number_of_hidden_layers' : Describes the number of the layers that will be generated
-        2) 'first_neuron': Describes the number of nodes of the model's first layer
-        3) 'dropout':  Describe the portion of the set that will be dropouted after each Layer
-        The minimum value of nodes that can be applied to a hidden layer is n_classses.
-
-        """
-        hidden_layers = kwargs.get('number_of_hidden_layers')
-        if hidden_layers:
-            for h_layer in range(1, hidden_layers + 1):
-                nodes = kwargs.get('first_neuron') / (2 * h_layer)
-                nodes = int(nodes if nodes > n_labels else n_labels)
-                model_nn.add(Dense(nodes, activation=kwargs.get('activation', 'relu')))
-                model_nn.add(Dropout(kwargs.get('dropout', 0.5)))
-        return  model_nn
-
-    n_labels = y_train.shape[1]
-    visualize_process = kwargs.get('visualize_process', False)
-    with_early_stoping = kwargs.get('early_stopping', True)
-
-    model = Sequential()
-    model.add(Dense(units=kwargs.get('first_neuron', 2),
-                    input_dim=x_train.shape[1],
-                    activation=kwargs.get('activation', 'relu')))
-
-    # Dropout probability in order to avoid overfitting.
-    model.add(Dropout(kwargs.get('dropout', 0.5)))
-
-    # Apply hidden layers
-    model = generate_hidden_layers(model, n_labels, **kwargs)
-
-    # last Hidden layer
-    # Mutual exclusive Classes
-    model.add(Dense(n_labels, activation='softmax'))
+    inputs = Input((MAX_SEQUENCE_LENGTH,))
+    EMBEDDING_DIM = params.get('embedding_dim')
+    GRU_SIZE = params.get('gru_size', 200)
+    DENSE = params.get('dense', 300)
+    N_CLASSES = y_train.shape[1]
+    embeddings_matrix = params.get('embeddings_matrix')
+    visualize_process = params.get('visualize_process', False)
+    visualize_process = (visualize_process if isinstance(visualize_process, bool)
+                         else visualize_process == 'True')
+    with_early_stoping = params.get('with_early_stoping', True)
+    with_early_stoping = (with_early_stoping if isinstance(with_early_stoping, bool)
+                          else with_early_stoping == 'True')
+    multistack_run = params.get('multistack_run', False)
+    multistack_run = (multistack_run if isinstance(multistack_run, bool)
+                      else multistack_run == 'True')
 
     # Apply default Callback methods
     if with_early_stoping:
-        stopper = EarlyStopping(monitor=kwargs.get('early_stopping_config__monitor', 'val_f1'),
-                                min_delta=kwargs.get('early_stopping_config__min_delta', 0),
-                                patience=kwargs.get('early_stopping_config__patience', 5),
-                                mode=kwargs.get('early_stopping_config__mode', 'auto'),
+        stopper = EarlyStopping(monitor=params.get('early_stopping_config__monitor', 'val_f1'),
+                                min_delta=params.get('early_stopping_config__min_delta', 0),
+                                patience=params.get('early_stopping_config__patience', 5),
+                                mode=params.get('early_stopping_config__mode', 'auto'),
 
                                 )
         default_callbacks = [stopper]
@@ -71,33 +51,165 @@ def load_model(x_train, y_train, x_train_dev, y_train_dev, kwargs):
 
     # Apply extra monitoring Callback methods
     if visualize_process:
-        print(model.summary())
-        checkpoint = ModelCheckpoint(kwargs.get('model_type', 'keras_tf_idf_model'),
+        checkpoint = ModelCheckpoint(params['model_type'],
                                      monitor='val_accuracy',
                                      verbose=1,
                                      save_best_only=True,
                                      mode='max')
 
-        checkpoint2 = ModelCheckpoint(kwargs.get('model_type', 'keras_tf_idf_model'),
-                                     monitor='val_f1',
-                                     verbose=1,
-                                     save_best_only=True,
-                                     mode='max')
+        checkpoint2 = ModelCheckpoint(params['model_type'],
+                                      monitor='val_f1',
+                                      verbose=1,
+                                      save_best_only=True,
+                                      mode='max')
 
         extra_callbacks = [checkpoint, TQDMNotebookCallback(), checkpoint2]
     else:
         extra_callbacks = []
 
-    # Model compilation parameterized with
-    model.compile(loss='categorical_crossentropy',
-                  optimizer=kwargs.get('optimizer', 'Adam'),
-                  metrics=[f1, 'categorical_accuracy'])
+    # Add an embedding layer with 0.2 dropout probability
+    embeddings = Embedding(MAX_WORDS + 2, EMBEDDING_DIM, weights=[embeddings_matrix],
+                           input_length=MAX_SEQUENCE_LENGTH, mask_zero=True, trainable=False)(inputs)
+    drop_emb = Dropout(params['embeddings_dropout'])(embeddings)
 
-    history = model.fit(x_train,y_train,
-                        batch_size=kwargs.get('batch_size', 32),
-                        epochs=kwargs.get('epochs', 10),
+    import ipdb
+    ipdb.set_trace()
+    # add a bidirectional gru layer with variational (recurrent) dropout
+    bi_gru = Bidirectional(GRU(GRU_SIZE,
+                               return_sequences=True,
+                               recurrent_dropout=params['var_dropout']))(drop_emb)
+    if multistack_run:
+        # In Case of multistack  RNN
+        deep_attention_entry = GRU(GRU_SIZE,
+                                   return_sequences=True,
+                                   recurrent_dropout=params['var_dropout'])(bi_gru)
+    else:
+        deep_attention_entry = bi_gru
+
+    # add a deep self attention layer
+    x, attn = DeepAttention(return_attention=True)(deep_attention_entry)
+
+    # add a hidden MLP layer
+    drop = Dropout(params["mlp_dropout"])(x)
+    out = Dense(DENSE, activation=params['rnn_activation'])(x)
+
+    # add the output MLP layer
+    out = Dense(N_CLASSES, activation=params['mlp_activation'])(out)
+    model = Model(inputs, out)
+
+    if visualize_process:
+        print(model.summary())
+
+    model.compile(loss='categorical_crossentropy',
+                  optimizer=params['optimizer'],
+                  metrics=[precision, recall, f1, accuracy, 'categorical_accuracy'])
+
+    history = model.fit(x_train, y_train,
+                        batch_size=params.get('batch_size', 32),
+                        epochs=params.get('epochs', 10),
                         verbose=0,
                         callbacks=default_callbacks + extra_callbacks,
+                        validation_data=(x_train_dev, y_train_dev),
+                        shuffle=True)
+
+    return history, model
+
+
+def load_lstm_model(x_train, y_train, x_train_dev, y_train_dev, params):
+    """
+    The callback method that will be used from the Talos API in order to
+    generate a configurable Keras RNN Model with Bidirection GRUs.
+    :return (tuple): A tuple with the history object of the model train and the ,
+                     generated Keras model itself.
+    """
+    inputs = Input((MAX_SEQUENCE_LENGTH,))
+    EMBEDDING_DIM = params.get('embedding_dim')
+    LSTM_SIZE = params.get('lstm_size', 200)
+    DENSE = params.get('dense', 300)
+    N_CLASSES = y_train.shape[1]
+    embeddings_matrix = params.get('embeddings_matrix')
+    visualize_process = params.get('visualize_process', False)
+    visualize_process = (visualize_process if isinstance(visualize_process, bool)
+                         else visualize_process == 'True')
+    with_early_stoping = params.get('with_early_stoping', True)
+    with_early_stoping = (with_early_stoping if isinstance(with_early_stoping, bool)
+                          else with_early_stoping == 'True')
+    multistack_run = params.get('multistack_run', False)
+    multistack_run = (multistack_run if isinstance(multistack_run, bool)
+                      else multistack_run == 'True')
+
+    # Apply default Callback methods
+    if with_early_stoping:
+        stopper = EarlyStopping(monitor=params.get('early_stopping_config__monitor', 'val_f1'),
+                                min_delta=params.get('early_stopping_config__min_delta', 0),
+                                patience=params.get('early_stopping_config__patience', 5),
+                                mode=params.get('early_stopping_config__mode', 'auto'),
+
+                                )
+        default_callbacks = [stopper]
+    else:
+        default_callbacks = []
+
+    # Apply extra monitoring Callback methods
+    if visualize_process:
+        checkpoint = ModelCheckpoint(params['model_type'],
+                                     monitor='val_accuracy',
+                                     verbose=1,
+                                     save_best_only=True,
+                                     mode='max')
+
+        checkpoint2 = ModelCheckpoint(params['model_type'],
+                                      monitor='val_f1',
+                                      verbose=1,
+                                      save_best_only=True,
+                                      mode='max')
+
+        extra_callbacks = [checkpoint, TQDMNotebookCallback(), checkpoint2]
+    else:
+        extra_callbacks = []
+
+    # Add an embedding layer with 0.2 dropout probability
+    embeddings = Embedding(MAX_WORDS+2, EMBEDDING_DIM, weights=[embeddings_matrix],
+                           input_length=MAX_SEQUENCE_LENGTH, mask_zero=True, trainable=False)(inputs)
+    drop_emb = Dropout(params['embeddings_dropout'])(embeddings)
+
+    import ipdb
+    ipdb.set_trace()
+    # add a bidirectional gru layer with variational (recurrent) dropout
+    bi_lstm = Bidirectional(LSTM(LSTM_SIZE,
+                                 return_sequences=True,
+                                 recurrent_dropout=params['var_dropout']))(drop_emb)
+    if multistack_run:
+        # In Case of multistack  RNN
+        deep_attention_entry = LSTM(LSTM_SIZE,
+                                    return_sequences=True,
+                                    recurrent_dropout=params['var_dropout'])(bi_lstm)
+    else:
+        deep_attention_entry = bi_lstm
+
+    #add a deep self attention layer
+    x, attn = DeepAttention(return_attention=True)(deep_attention_entry)
+
+    # add a hidden MLP layer
+    drop = Dropout(params["mlp_dropout"])(x)
+    out = Dense(DENSE, activation=params['rnn_activation'])(x)
+
+    # add the output MLP layer
+    out = Dense(N_CLASSES, activation=params['mlp_activation'])(out)
+    model = Model(inputs, out)
+
+    if visualize_process:
+        print(model.summary())
+
+    model.compile(loss='categorical_crossentropy',
+                  optimizer=params['optimizer'],
+                  metrics=[precision, recall, f1, accuracy, 'categorical_accuracy'])
+
+    history = model.fit(x_train, y_train,
+                        batch_size=params.get('batch_size', 32),
+                        epochs=params.get('epochs', 10),
+                        verbose = 0,
+                        callbacks= default_callbacks + extra_callbacks,
                         validation_data=(x_train_dev, y_train_dev),
                         shuffle=True)
 
