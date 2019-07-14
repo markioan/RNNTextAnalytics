@@ -7,15 +7,15 @@
  - Roumeliotis Anargyros (P3351817)
 
 ## Description
-This project aims to create an RNN- LSTM model that classifies the best stackoverflow's posts into the relevant programming languages. For the purpose of this project, we used an already formatted and structured dataset of *posts* and *tags* generated from Google's BigQuery.
+This project aims to create an RNN model that classifies the best stackoverflow's posts into the relevant programming languages. For the purpose of this project, we used an already formatted and structured dataset of *posts* and *tags* generated from Google's BigQuery.
 
 The project has been split into three sections(notebooks).
     
-   1. The *first* one transforms the *post* data into **TF-IDF Vectors** with and without Standardization. 
+   1. Notebook *keras_rnn_stackoverflow_posts_with_bigru* finds the best model between a uni-stacked and multi-stacked RNN with GRU Cells and a Self attention MLP on the top of them.
    
-   2. The *second* one transforms the *post* data into **Centroids of word Embeddings** with and without Standardization. 
+   2. Notebook *keras_rnn_stackoverflow_posts_with_lstm* finds the best model between a uni-stacked and multi-stacked RNN with LSTM Cells and a Self attention MLP on the top of them. 
    
-   3. The *third* finds the **best** tuned model parameter combination of the above 4 models and trains a RNN neural model with it.
+   3. Notebook *keras_rnn_stackoverflow_posts_best_model* finds the **best** tuned model parameter combination of the above 4 models and trains a RNN neural model with it.
    
    Each section contains a partition where it evaluates and visualizes the prediction performance of the best configured RNN model using the relevant metrics as *f1*, *accuracy*,  and visualizations as *Confusion Matrix* , *Classification Report*
 
@@ -60,13 +60,15 @@ The project is structured with the below formation:
  
 ## Runtime Instructions
 
-   1. For the text classification models using **TF-IDF vectors** use the *keras_mlp_stackoverflow_posts_tf.ipyb* notebook. When the cell parameters tuning is ready for both models (with and without standardization) then 2 **Talos** log files will have been generated under the *data/talos_logs/* folder.
+   1. For the text classification models using **GRU Cells** use the *keras_mlp_stackoverflow_posts_bigru.ipyb* notebook. When the cell parameters tuning is ready for both models (multi-stack and uni-stack) then 2 **Talos** log files will have been generated under the *data/talos_logs/* folder.
    
-   2. For the text classification models using **Centroids of word Embeddings** use the *keras_mlp_stackoverflow_posts_ftc.ipyb* notebook. When the cell parameters tuning is ready for both models (with and without standardization) then 2 **Talos** log files will have been generated under the *data/talos_logs/* folder.
+   2. For the text classification models using **LSTM Cells** use the *keras_mlp_stackoverflow_posts_lstm.ipyb* notebook. When the cell parameters tuning is ready for both models (multi-stack and uni-stack) then 2 **Talos** log files will have been generated under the *data/talos_logs/* folder.
     
         **Caution**: Due to the great amount of memory usage of that implementation,
          it is suggested to clear all the other open kernels from other notebooks.
    
-   3. After step 1 & 2 you get the best MLP Neural Network among all the registered combinations using the *keras_mlp_stackoverflow_posts_best_model.ipynb* notebook. It trains an MLP *Keras model* with the best loaded *Talos parameters* and visualizes it's performance at the test prediction. At the end of this notebook there is a comparison between the generated **MLP NN** model and a simple **Naive Bayes** model classifier in order to check whether the usage of an Neural Network was required for our classification problem.
+   3. After step 1 & 2 you get the best Recursive Neural Network among all the registered combinations using the *keras_mlp_stackoverflow_posts_best_model.ipynb* notebook. It trains an RNN with the best loaded *Talos parameters* and visualizes it's performance at the test prediction. At the end of this notebook there is a comparison between the generated **MLP NN** model and a simple **Naive Bayes** model classifier in order to check whether the usage of an Neural Network was required for our classification problem.
    
-   * *Important Note*: If you want to avoid the step 1 and 2 then you run step 3 individually as long as there are the relevant *talos_logs* into the */data* folder. 
+   * *Important Note*: If you want to avoid the step 1 and 2 then you run step 3 individually as long as there are the relevant *talos_logs* into the */data* folder. Furthermore, due to high hardware and time requirments for the execution of these notebooks we have made two available execution modes: 
+   *Training Mode* Where you can run the notebooks for a small partition of the dataset *eg. use 4 classes instead of 20*
+   *Production Mode* Where we are only interested in finding the best model which will be used on the Notebook *keras_mlp_stackoverflow_posts_best_model.ipynb* and we are not interested in visuallizing the training and testing process of each model separately.
