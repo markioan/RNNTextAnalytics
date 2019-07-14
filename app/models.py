@@ -1,3 +1,7 @@
+import logging
+import os
+import pickle
+
 from collections import Iterable
 
 import pandas as pd
@@ -11,10 +15,11 @@ from talos import Reporting
 
 from app.layers import DeepAttention
 from app.metrics import *
-from definitions import MAX_SEQUENCE_LENGTH, MAX_WORDS
+from definitions import MAX_SEQUENCE_LENGTH, MAX_WORDS, DATA_DIR
 
+logger = logging.getLogger(__name__)
 
-def load_biGRU_model(x_train, y_train, x_train_dev, y_train_dev, params):
+def load_bi_gru_model(x_train, y_train, x_train_dev, y_train_dev, params):
     """
     The callback method that will be used from the Talos API in order to
     generate a configurable Keras RNN Model with Bidirection GRUs.
@@ -26,7 +31,9 @@ def load_biGRU_model(x_train, y_train, x_train_dev, y_train_dev, params):
     GRU_SIZE = params.get('gru_size', 200)
     DENSE = params.get('dense', 300)
     N_CLASSES = y_train.shape[1]
-    embeddings_matrix = params.get('embeddings_matrix')
+    embeddings_matrix_path = os.path.join(DATA_DIR, params['embeddings_matrix_path'])
+    with open(embeddings_matrix_path, 'rb') as embeddings_matrix_pickle:
+        embeddings_matrix = pickle.load(embeddings_matrix_pickle)
     visualize_process = params.get('visualize_process', False)
     visualize_process = (visualize_process if isinstance(visualize_process, bool)
                          else visualize_process == 'True')
@@ -72,8 +79,6 @@ def load_biGRU_model(x_train, y_train, x_train_dev, y_train_dev, params):
                            input_length=MAX_SEQUENCE_LENGTH, mask_zero=True, trainable=False)(inputs)
     drop_emb = Dropout(params['embeddings_dropout'])(embeddings)
 
-    import ipdb
-    ipdb.set_trace()
     # add a bidirectional gru layer with variational (recurrent) dropout
     bi_gru = Bidirectional(GRU(GRU_SIZE,
                                return_sequences=True,
@@ -115,7 +120,7 @@ def load_biGRU_model(x_train, y_train, x_train_dev, y_train_dev, params):
     return history, model
 
 
-def load_lstm_model(x_train, y_train, x_train_dev, y_train_dev, params):
+def load_bi_lstm_model(x_train, y_train, x_train_dev, y_train_dev, params):
     """
     The callback method that will be used from the Talos API in order to
     generate a configurable Keras RNN Model with Bidirection GRUs.
@@ -127,7 +132,10 @@ def load_lstm_model(x_train, y_train, x_train_dev, y_train_dev, params):
     LSTM_SIZE = params.get('lstm_size', 200)
     DENSE = params.get('dense', 300)
     N_CLASSES = y_train.shape[1]
-    embeddings_matrix = params.get('embeddings_matrix')
+    embeddings_matrix_path = os.path.join(DATA_DIR, params['embeddings_matrix_path'])
+    with open(embeddings_matrix_path, 'rb') as embeddings_matrix_pickle:
+        embeddings_matrix = pickle.load(embeddings_matrix_pickle)
+
     visualize_process = params.get('visualize_process', False)
     visualize_process = (visualize_process if isinstance(visualize_process, bool)
                          else visualize_process == 'True')
@@ -173,8 +181,6 @@ def load_lstm_model(x_train, y_train, x_train_dev, y_train_dev, params):
                            input_length=MAX_SEQUENCE_LENGTH, mask_zero=True, trainable=False)(inputs)
     drop_emb = Dropout(params['embeddings_dropout'])(embeddings)
 
-    import ipdb
-    ipdb.set_trace()
     # add a bidirectional gru layer with variational (recurrent) dropout
     bi_lstm = Bidirectional(LSTM(LSTM_SIZE,
                                  return_sequences=True,
@@ -232,8 +238,15 @@ def find_best_model_over_scan_logs(metric_weight='val_f1', *filepaths):
     assert metric_weight is not None, "Argument <metric_weight> can not be None."
     assert isinstance(filepaths, Iterable), "Argument <filepaths> must be iterable "
 
-    # Cre
-    config_pd = pd.concat(map(lambda file: Reporting(file).data, filepaths))
+    talos_configs = []
+    for file in filepaths:
+        try:
+            talos_configs.append(Reporting(file).data)
+        except Exception as e:
+            logger.warning(e)
+
+    config_pd = pd.concat(talos_configs)
+    # print(config_pd)
     config_pd.index = range(config_pd.shape[0])
 
     best_model_idx = config_pd[metric_weight].idxmax()

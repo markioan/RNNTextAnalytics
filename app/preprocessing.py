@@ -26,6 +26,7 @@ DATASET_PICKLE_FILENAME = 'stack-overflow-pickle'
 EMBEDDINGS_FILENAME = 'cc.en.300.vec'
 EMBEDDINGS_VOC = 'fasttext_voc'
 EMBEDDINGS_VEC = 'fasttext.npy'
+EMBEDDINGS_MATRIX_PICKLE_FILENAME = 'embeddings-matrix-pickle'
 MINIMIZED_EMBEDDINGS_FILENAME = 'minimized_embeddings'
 
 # Data Processing methods
@@ -273,7 +274,7 @@ def preprocess_data(input_data, label_field, text_field, **kwargs):
     }
 
 
-def generate_embeddings_matrix(embeddings_voc, embeddings_vec,  words_index):
+def save_embeddings_matrix(embeddings_voc, embeddings_vec,  words_index, filename=EMBEDDINGS_MATRIX_PICKLE_FILENAME):
     embeddings_dim = embeddings_vec.shape[1]
     # Extra values of '__UNK__' and '__PADDING__'
     embedding_matrix = np.zeros((MAX_WORDS + 2, embeddings_dim))
@@ -286,7 +287,10 @@ def generate_embeddings_matrix(embeddings_voc, embeddings_vec,  words_index):
         except:
             pass
 
-    return  embedding_matrix
+    embeddings_matrix_pickle_path = os.path.join(DATA_DIR, filename)
+    pickle.dump(embedding_matrix,  open(embeddings_matrix_pickle_path, 'wb'))
+    return filename
+
 
 if __name__ == "__main__":
     data = load_dataset()
