@@ -71,8 +71,8 @@ The project is structured with the below formation:
    
    * *Important Note*: If you want to avoid the step 1 and 2 then you run step 3 individually as long as there are the relevant *talos_logs* into the */data* folder. Furthermore, due to high hardware and time requirments for the execution of these notebooks we have made two available execution modes: 
    
-   * **Training Mode** Where you can run the notebooks for a small partition of the dataset *eg. use 4 classes instead of 20*
+    * **Training Mode:** Where you can run the notebooks for a small partition of the dataset *eg. use 4 classes instead of 20*
    
-   * **Production Mode** Where we are only interested in finding the best model which will be used on the Notebook *keras_mlp_stackoverflow_posts_best_model.ipynb* and we are not interested in visuallizing the training and testing process of each model separately.
+    * **Production Mode:** Where we are only interested in finding the best model which will be used on the Notebook *keras_mlp_stackoverflow_posts_best_model.ipynb* and we are not interested in visuallizing the training and testing process of each model separately.
    
    You can activate each one of these modes by setting variable RUN_STATE respetively. More details can be found on the jupyter notebooks.
