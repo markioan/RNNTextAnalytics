@@ -75,4 +75,4 @@ The project is structured with the below formation:
    
    * **Production Mode:** Where we are only interested in finding the best model which will be used on the Notebook *keras_mlp_stackoverflow_posts_best_model.ipynb* and we are not interested in visuallizing the training and testing process of each model separately.
    
-   You can activate each one of these modes by setting variable RUN_STATE respetively. More details can be found on the jupyter notebooks.
+   You can activate each one of these modes by setting variable RUN_STATE respectively. More details can be found on the jupyter notebooks.
