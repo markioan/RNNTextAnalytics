@@ -274,7 +274,17 @@ def preprocess_data(input_data, label_field, text_field, **kwargs):
     }
 
 
-def save_embeddings_matrix(embeddings_voc, embeddings_vec,  words_index, filename=EMBEDDINGS_MATRIX_PICKLE_FILENAME):
+def save_embeddings_matrix(embeddings_voc,
+                           embeddings_vec,
+                           words_index,
+                           filename=EMBEDDINGS_MATRIX_PICKLE_FILENAME):
+    """
+    Saves the <words_index> embeddings vectors into a matrix and into a pickle file based on the
+    passed <filename>.
+
+    :return (str): The filename of the saved dumps.
+    """
+
     embeddings_dim = embeddings_vec.shape[1]
     # Extra values of '__UNK__' and '__PADDING__'
     embedding_matrix = np.zeros((MAX_WORDS + 2, embeddings_dim))
